@@ -4,148 +4,156 @@ import hashlib
 import os
 import json
 
+BG       = '#0d0d18'
+SURFACE  = '#161628'
+SURFACE2 = '#1e1e35'
+ACCENT   = '#7c5cfc'
+ACCENT2  = '#e94560'
+SUCCESS  = '#10b981'
+FG       = '#e8e8f0'
+FG_DIM   = '#6b7280'
+FG_LABEL = '#a5b4fc'
+FONT     = 'Segoe UI'
+
+
 class LoginDialog:
     def __init__(self):
         self.dialog = tk.Tk()
-        self.dialog.title("Secure Password Manager - Login")
-        self.dialog.geometry("420x520")
+        self.dialog.title('Vault — Secure Password Manager')
+        self.dialog.geometry('440x540')
         self.dialog.resizable(False, False)
-        self.dialog.configure(bg='#0f0f1a')
+        self.dialog.configure(bg=BG)
         self.dialog.eval('tk::PlaceWindow . center')
-        
-        self.password = None
+
+        self.password       = None
         self.login_attempts = 0
-        self.max_attempts = 3
-        
-        self.master_hash_file = os.path.join(os.environ['APPDATA'], 'PasswordManager', 'master.hash')
+        self.max_attempts   = 3
+
+        self.master_hash_file = os.path.join(
+            os.environ['APPDATA'], 'PasswordManager', 'master.hash')
         self.is_first_run = not os.path.exists(self.master_hash_file)
-        
-        self.setup_ui()
-        self.dialog.protocol("WM_DELETE_WINDOW", self.dialog.quit)
-    
-    def setup_ui(self):
-        main_frame = tk.Frame(self.dialog, bg='#0f0f1a')
-        main_frame.pack(fill='both', expand=True, padx=40, pady=30)
-        
-        title_frame = tk.Frame(main_frame, bg='#0f0f1a')
-        title_frame.pack(pady=(0, 30))
-        
-        tk.Label(title_frame, text="Password Manager", 
-                font=('Segoe UI', 24, 'bold'), bg='#0f0f1a', fg='#ffffff').pack()
-        tk.Label(title_frame, text="Secure & Modern", 
-                font=('Segoe UI', 11), bg='#0f0f1a', fg='#6b7280').pack()
-        
+
+        self._build_ui()
+        self.dialog.protocol('WM_DELETE_WINDOW', self.dialog.quit)
+
+    def _build_ui(self):
+        outer = tk.Frame(self.dialog, bg=BG)
+        outer.pack(fill='both', expand=True, padx=44, pady=36)
+
+        logo_frame = tk.Frame(outer, bg=BG)
+        logo_frame.pack(pady=(0, 28))
+
+        tk.Label(logo_frame, text='🔐', font=(FONT, 38), bg=BG).pack()
+        tk.Label(logo_frame, text='Vault', font=(FONT, 26, 'bold'),
+                 bg=BG, fg=FG).pack()
+        tk.Label(logo_frame, text='Secure Password Manager', font=(FONT, 10),
+                 bg=BG, fg=FG_DIM).pack(pady=(2, 0))
+
         if self.is_first_run:
-            info_text = "First run! Please set your master password."
-            self.info_label = tk.Label(main_frame, text=info_text, 
-                                      font=('Segoe UI', 9), bg='#0f0f1a', fg='#10b981')
-            self.info_label.pack(pady=(0, 15))
-        
-        input_frame = tk.Frame(main_frame, bg='#1a1a2e', highlightthickness=2, 
-                               highlightcolor='#e94560', highlightbackground='#1a1a2e')
-        input_frame.pack(fill='x', pady=(0, 10))
-        
-        self.password_entry = tk.Entry(input_frame, width=30, show='*',
-                                      bg='#1a1a2e', fg='#ffffff', 
-                                      insertbackground='#e94560',
-                                      font=('Segoe UI', 14), relief='flat',
-                                      highlightthickness=0)
-        self.password_entry.pack(padx=15, pady=12)
-        self.password_entry.bind('<Return>', lambda e: self.login())
+            pill = tk.Frame(outer, bg='#10b98122')
+            pill.pack(fill='x', pady=(0, 16))
+            tk.Label(pill, text='✦  First run — set your master password',
+                     font=(FONT, 9), bg='#10b98122', fg=SUCCESS,
+                     pady=8).pack()
+
+        tk.Label(outer, text='MASTER PASSWORD', font=(FONT, 9, 'bold'),
+                 bg=BG, fg=FG_LABEL).pack(anchor='w', pady=(0, 6))
+
+        pw_wrap = tk.Frame(outer, bg=SURFACE2, highlightthickness=2,
+                           highlightbackground=SURFACE2, highlightcolor=ACCENT)
+        pw_wrap.pack(fill='x')
+
+        self.password_entry = tk.Entry(pw_wrap, show='*', width=28,
+                                       bg=SURFACE2, fg=FG,
+                                       insertbackground=ACCENT,
+                                       font=(FONT, 14), relief='flat',
+                                       highlightthickness=0)
+        self.password_entry.pack(padx=14, pady=13)
+        self.password_entry.bind('<FocusIn>',  lambda e: pw_wrap.config(highlightbackground=ACCENT))
+        self.password_entry.bind('<FocusOut>', lambda e: pw_wrap.config(highlightbackground=SURFACE2))
+        self.password_entry.bind('<Return>', lambda e: self._login())
         self.password_entry.focus()
-        
-        show_frame = tk.Frame(main_frame, bg='#0f0f1a')
-        show_frame.pack(fill='x', pady=(0, 20))
-        
+
+        toggle_row = tk.Frame(outer, bg=BG)
+        toggle_row.pack(fill='x', pady=(10, 0))
         self.show_var = tk.IntVar()
-        show_check = tk.Checkbutton(show_frame, text="Show Password", 
-                                   variable=self.show_var, command=self.toggle_password,
-                                   bg='#0f0f1a', fg='#9ca3af', selectcolor='#0f0f1a',
-                                   font=('Segoe UI', 9), relief='flat', padx=0)
-        show_check.pack()
-        
-        self.btn_login = tk.Button(main_frame, text="Login", 
-                                  command=self.login,
-                                  bg='#e94560', fg='#ffffff', 
-                                  font=('Segoe UI', 12, 'bold'),
-                                  relief='flat', cursor='hand2',
-                                  height=2, width=25)
-        self.btn_login.pack(pady=(0, 10))
-        
-        self.error_label = tk.Label(main_frame, text="", 
-                                   font=('Segoe UI', 9), bg='#0f0f1a', fg='#ef4444')
-        self.error_label.pack(pady=(0, 5))
-        
-        footer_frame = tk.Frame(main_frame, bg='#0f0f1a')
-        footer_frame.pack(side='bottom', fill='x', pady=(20, 0))
-        
-        if self.is_first_run:
-            tk.Label(footer_frame, text="Don't forget this password! No recovery available.",
-                    font=('Segoe UI', 8), bg='#0f0f1a', fg='#6b7280').pack()
-        else:
-            tk.Label(footer_frame, text="All your data is encrypted.",
-                    font=('Segoe UI', 8), bg='#0f0f1a', fg='#6b7280').pack()
-    
-    def toggle_password(self):
-        if self.show_var.get():
-            self.password_entry.config(show='')
-        else:
-            self.password_entry.config(show='*')
-    
-    def login(self):
+        tk.Checkbutton(toggle_row, text='Show password', variable=self.show_var,
+                       command=self._toggle_show, bg=BG, fg=FG_DIM,
+                       selectcolor=BG, activebackground=BG, activeforeground=FG_DIM,
+                       font=(FONT, 9), relief='flat', cursor='hand2').pack(side='left')
+
+        self.error_label = tk.Label(outer, text='', font=(FONT, 9),
+                                    bg=BG, fg='#ef4444', wraplength=300)
+        self.error_label.pack(pady=(14, 0))
+
+        login_btn = tk.Button(outer, text='Unlock Vault',
+                              command=self._login,
+                              bg=ACCENT, fg='#ffffff',
+                              font=(FONT, 13, 'bold'),
+                              relief='flat', cursor='hand2',
+                              activebackground=ACCENT, activeforeground='#ffffff',
+                              pady=12)
+        login_btn.pack(fill='x', pady=(8, 0))
+
+        footer = tk.Frame(outer, bg=BG)
+        footer.pack(side='bottom', fill='x', pady=(24, 0))
+        hint = ('Remember this password — there is no recovery option.' if self.is_first_run
+                else 'All entries are end-to-end encrypted.')
+        tk.Label(footer, text=hint, font=(FONT, 8), bg=BG, fg=FG_DIM,
+                 wraplength=300).pack()
+
+    def _toggle_show(self):
+        self.password_entry.config(show='' if self.show_var.get() else '*')
+
+    def _login(self):
         password = self.password_entry.get()
-        
+
         if not password:
-            self.show_error("Please enter your password!")
+            self._show_error('Please enter your master password.')
             return
-        
+
         if self.is_first_run:
             if len(password) < 4:
-                self.show_error("Password must be at least 4 characters!")
+                self._show_error('Password must be at least 4 characters.')
                 return
-            
             os.makedirs(os.path.dirname(self.master_hash_file), exist_ok=True)
-            password_hash = hashlib.sha256(password.encode()).hexdigest()
+            pw_hash = hashlib.sha256(password.encode()).hexdigest()
             with open(self.master_hash_file, 'w') as f:
-                json.dump({'hash': password_hash}, f)
-            
+                json.dump({'hash': pw_hash}, f)
             self.password = password
             self.dialog.quit()
             self.dialog.destroy()
             return
-        
+
         try:
             with open(self.master_hash_file, 'r') as f:
-                data = json.load(f)
-                stored_hash = data.get('hash')
-        except:
-            self.show_error("System error! File cannot be read.")
+                stored_hash = json.load(f).get('hash')
+        except Exception:
+            self._show_error('Could not read the master password file.')
             return
-        
-        password_hash = hashlib.sha256(password.encode()).hexdigest()
-        
-        if password_hash == stored_hash:
+
+        pw_hash = hashlib.sha256(password.encode()).hexdigest()
+
+        if pw_hash == stored_hash:
             self.password = password
             self.dialog.quit()
             self.dialog.destroy()
         else:
             self.login_attempts += 1
             remaining = self.max_attempts - self.login_attempts
-            
             if remaining <= 0:
-                messagebox.showerror("Error", "Too many failed attempts! Program will close.")
+                messagebox.showerror('Locked', 'Too many failed attempts. The application will close.')
                 self.dialog.quit()
                 self.dialog.destroy()
                 return
-            
-            self.show_error(f"Wrong password! {remaining} attempts remaining.")
+            self._show_error(f'Incorrect password. {remaining} attempt{"s" if remaining != 1 else ""} remaining.')
             self.password_entry.delete(0, tk.END)
             self.password_entry.focus()
-    
-    def show_error(self, message):
-        self.error_label.config(text=message)
-        self.dialog.after(3000, lambda: self.error_label.config(text=""))
-    
+
+    def _show_error(self, message):
+        self.error_label.config(text=f'⚠  {message}')
+        self.dialog.after(4000, lambda: self.error_label.config(text=''))
+
     def run(self):
         self.dialog.mainloop()
         return self.password
