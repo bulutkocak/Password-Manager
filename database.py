@@ -4,7 +4,7 @@ import shutil
 from datetime import datetime
 from models.password_entry import PasswordEntry
 
-APP_NAME  = 'Vault'
+APP_NAME  = 'Vault-Pass'
 DATA_DIR  = os.path.join(os.environ['APPDATA'], APP_NAME)
 DATA_FILE = os.path.join(DATA_DIR, 'vault.json')
 BAK_FILE  = os.path.join(DATA_DIR, 'vault.bak.json')
