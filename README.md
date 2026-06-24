@@ -52,9 +52,9 @@ Passwords are stored locally on your computer:
 
 | OS | Path |
 |----|------|
-| Windows | `C:\Users\[Username]\AppData\Roaming\Vault\vault.json` |
-| Linux | `/home/[Username]/.config/Vault/vault.json` |
-| macOS | `/Users/[Username]/Library/Application Support/Vault/vault.json` |
+| Windows | `C:\Users\[Username]\AppData\Roaming\Vault-Pass\vault.json` |
+| Linux | `/home/[Username]/.config/Vault-Pass/vault.json` |
+| macOS | `/Users/[Username]/Library/Application Support/Vault-Pass/vault.json` |
 
 A backup is automatically saved as `vault.bak.json` in the same folder on every write.
 
