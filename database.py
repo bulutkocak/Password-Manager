@@ -1,70 +1,93 @@
 import json
 import os
+import shutil
 from datetime import datetime
 from models.password_entry import PasswordEntry
+
+APP_NAME  = 'Vault'
+DATA_DIR  = os.path.join(os.environ['APPDATA'], APP_NAME)
+DATA_FILE = os.path.join(DATA_DIR, 'vault.json')
+BAK_FILE  = os.path.join(DATA_DIR, 'vault.bak.json')
+
 
 class Database:
     def __init__(self, master_password):
         self.master_password = master_password
-        self.data_dir = os.path.join(os.environ['APPDATA'], 'PasswordManager')
-        self.data_file = os.path.join(self.data_dir, 'passwords.json')
-        self.entries = []
+        self.data_dir        = DATA_DIR
+        self.data_file       = DATA_FILE
+        self.entries: list[PasswordEntry] = []
         self._ensure_directory()
-        self._load_data()
-    
+        self._load()
+
     def _ensure_directory(self):
-        if not os.path.exists(self.data_dir):
-            os.makedirs(self.data_dir)
-    
-    def _load_data(self):
-        if os.path.exists(self.data_file):
-            try:
-                with open(self.data_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    self.entries = [PasswordEntry.from_dict(item) for item in data]
-            except:
-                self.entries = []
-        else:
+        os.makedirs(self.data_dir, exist_ok=True)
+
+    def _load(self):
+        if not os.path.exists(self.data_file):
             self.entries = []
-            self._save_data()
-    
-    def _save_data(self):
-        data = [entry.to_dict() for entry in self.entries]
-        with open(self.data_file, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-    
-    def reset_all_data(self):
+            self._save()
+            return
+        try:
+            with open(self.data_file, 'r', encoding='utf-8') as f:
+                payload = json.load(f)
+            self.entries = [PasswordEntry.from_dict(item) for item in payload.get('entries', [])]
+        except Exception:
+            self.entries = []
+
+    def _save(self):
         if os.path.exists(self.data_file):
-            os.remove(self.data_file)
-        self.entries = []
-        self._save_data()
-        return True
-    
-    def get_all(self):
-        return sorted(self.entries, key=lambda x: x.platform)
-    
-    def search(self, term):
+            shutil.copy2(self.data_file, BAK_FILE)
+        payload = {
+            'app':      APP_NAME,
+            'version':  1,
+            'saved_at': datetime.now().isoformat(),
+            'entries':  [e.to_dict() for e in self.entries],
+        }
+        tmp = self.data_file + '.tmp'
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(payload, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, self.data_file)
+
+    def get_all(self) -> list[PasswordEntry]:
+        return sorted(self.entries, key=lambda e: e.platform.lower())
+
+    def search(self, term: str) -> list[PasswordEntry]:
         if not term:
             return self.get_all()
-        term = term.lower()
-        return [e for e in self.entries if term in e.platform.lower() or term in e.username.lower()]
-    
-    def get_categories(self):
-        categories = list(set(e.category for e in self.entries))
-        return sorted(categories)
-    
-    def add(self, entry):
+        t = term.lower()
+        return sorted(
+            [e for e in self.entries
+             if t in e.platform.lower() or t in e.username.lower()
+             or t in (e.category or '').lower() or t in (e.notes or '').lower()],
+            key=lambda e: e.platform.lower()
+        )
+
+    def get_categories(self) -> list[str]:
+        return sorted({e.category for e in self.entries if e.category})
+
+    def add(self, entry: PasswordEntry) -> None:
         self.entries.append(entry)
-        self._save_data()
-    
-    def update(self, entry):
+        self._save()
+
+    def update(self, entry: PasswordEntry) -> bool:
         for i, e in enumerate(self.entries):
             if e.id == entry.id:
                 self.entries[i] = entry
-                self._save_data()
+                self._save()
                 return True
         return False
-    
-    def delete(self, entry_id):
+
+    def delete(self, entry_id: str) -> bool:
+        before = len(self.entries)
         self.entries = [e for e in self.entries if e.id != entry_id]
-        self._save_data()
+        if len(self.entries) < before:
+            self._save()
+            return True
+        return False
+
+    def reset_all_data(self) -> None:
+        self.entries = []
+        for path in (self.data_file, BAK_FILE):
+            if os.path.exists(path):
+                os.remove(path)
+        self._save()
