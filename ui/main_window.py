@@ -1,6 +1,9 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 import pyperclip
+import threading
+import urllib.request
+import webbrowser
 from crypto_helper import CryptoHelper
 from ui.add_edit_dialog import AddEditDialog
 from models.password_entry import PasswordEntry
@@ -19,6 +22,10 @@ FG        = '#e8e8f0'
 FG_DIM    = '#6b7280'
 FG_LABEL  = '#a5b4fc'
 FONT      = 'Segoe UI'
+
+CURRENT_VERSION  = '1.0.1'
+VERSION_URL      = 'https://raw.githubusercontent.com/bulutkocak/Vault-Password-Manager/refs/heads/main/version.txt'
+RELEASES_URL     = 'https://github.com/bulutkocak/Vault-Password-Manager/releases/tag/1.0.1'
 
 
 class MainWindow:
@@ -39,6 +46,52 @@ class MainWindow:
         self._build_ui()
         self.load_entries()
         self.window.protocol("WM_DELETE_WINDOW", self.on_close)
+
+        self.window.after(800, self._check_version_async)
+
+    def _check_version_async(self):
+        threading.Thread(target=self._fetch_version, daemon=True).start()
+
+    def _fetch_version(self):
+        try:
+            with urllib.request.urlopen(VERSION_URL, timeout=5) as resp:
+                latest = resp.read().decode().strip()
+            self.window.after(0, lambda: self._apply_version_result(latest))
+        except Exception:
+            pass
+
+    def _apply_version_result(self, latest: str):
+        self._version_label.config(text=f'v{CURRENT_VERSION}')
+        if self._parse_version(latest) > self._parse_version(CURRENT_VERSION):
+            self._show_update_banner(latest)
+
+    @staticmethod
+    def _parse_version(v: str):
+        try:
+            return tuple(int(x) for x in v.strip().lstrip('v').split('.'))
+        except Exception:
+            return (0,)
+
+    def _show_update_banner(self, latest: str):
+        banner = tk.Frame(self._banner_slot, bg=WARNING, cursor='hand2')
+        banner.pack(fill='x')
+
+        inner = tk.Frame(banner, bg=WARNING)
+        inner.pack(fill='x', padx=16, pady=7)
+
+        tk.Label(inner,
+                 text=f'⬆  New version available: v{latest}  —  click here to download',
+                 font=(FONT, 9, 'bold'), bg=WARNING, fg='#000000',
+                 cursor='hand2').pack(side='left')
+
+        tk.Button(inner, text='✕', command=banner.destroy,
+                  bg=WARNING, fg='#000000', font=(FONT, 9, 'bold'),
+                  relief='flat', cursor='hand2', padx=6,
+                  activebackground=WARNING).pack(side='right')
+
+        banner.bind('<Button-1>', lambda e: webbrowser.open(RELEASES_URL))
+        for child in inner.winfo_children():
+            child.bind('<Button-1>', lambda e: webbrowser.open(RELEASES_URL))
 
     def _setup_styles(self):
         style = ttk.Style()
@@ -103,6 +156,10 @@ class MainWindow:
         root.pack(fill='both', expand=True, padx=18, pady=16)
 
         self._build_header(root)
+
+        self._banner_slot = tk.Frame(root, bg=BG)
+        self._banner_slot.pack(fill='x', pady=(0, 2))
+
         self._build_toolbar(root)
         self._build_content(root)
         self._build_statusbar(root)
@@ -121,6 +178,11 @@ class MainWindow:
         tk.Label(left, text='🔐', font=(FONT, 20), bg=BG, fg=ACCENT).pack(side='left', padx=(0, 8))
         tk.Label(left, text='Vault', font=(FONT, 22, 'bold'), bg=BG, fg=FG).pack(side='left')
         tk.Label(left, text='Password Manager', font=(FONT, 11), bg=BG, fg=FG_DIM).pack(side='left', padx=(8, 0), pady=(4, 0))
+
+        self._version_label = tk.Label(left, text='v…', font=(FONT, 8),
+                                       bg=BG, fg=FG_DIM, cursor='hand2')
+        self._version_label.pack(side='left', padx=(10, 0), pady=(6, 0))
+        self._version_label.bind('<Button-1>', lambda e: webbrowser.open(RELEASES_URL))
 
         right = tk.Frame(header, bg=BG)
         right.pack(side='right', fill='y')
@@ -194,7 +256,7 @@ class MainWindow:
         self.tree.pack(side='left', fill='both', expand=True)
         vsb.pack(side='right', fill='y')
 
-        self.tree.tag_configure('odd', background=SURFACE)
+        self.tree.tag_configure('odd',  background=SURFACE)
         self.tree.tag_configure('even', background=SURFACE2)
 
         self.tree.bind('<<TreeviewSelect>>', self._on_select)
@@ -218,17 +280,15 @@ class MainWindow:
                   ('Category', '—'), ('Notes', '—'), ('Created', '—'), ('Updated', '—')]
 
         for key, default in fields:
-            lbl = tk.Label(self.detail_canvas, text=key.upper(),
-                           font=(FONT, 8, 'bold'), bg=SURFACE, fg=FG_LABEL)
-            lbl.pack(anchor='w', pady=(8, 1))
+            tk.Label(self.detail_canvas, text=key.upper(),
+                     font=(FONT, 8, 'bold'), bg=SURFACE, fg=FG_LABEL).pack(anchor='w', pady=(8, 1))
             val = tk.Label(self.detail_canvas, text=default,
                            font=(FONT, 10), bg=SURFACE, fg=FG,
                            wraplength=258, justify='left', anchor='w')
             val.pack(anchor='w')
             self._detail_rows[key] = val
 
-        sep = tk.Frame(detail_panel, bg=SURFACE2, height=1)
-        sep.pack(fill='x', padx=14)
+        tk.Frame(detail_panel, bg=SURFACE2, height=1).pack(fill='x', padx=14)
 
         btn_area = tk.Frame(detail_panel, bg=SURFACE)
         btn_area.pack(fill='x', padx=14, pady=12)
@@ -299,17 +359,17 @@ class MainWindow:
         placeholders = {'Platform': '—', 'Username': '—', 'Password': '••••••••',
                         'Category': '—', 'Notes': '—', 'Created': '—', 'Updated': '—'}
         for key, val in placeholders.items():
-            self._detail_rows[key].config(text=val)
+            self._detail_rows[key].config(text=val, fg=FG)
 
     def _display_details(self, entry, show_password=False):
         pw = self.crypto.decrypt(entry.encrypted_password) if show_password else '••••••••'
-        self._detail_rows['Platform'].config(text=entry.platform)
-        self._detail_rows['Username'].config(text=entry.username)
+        self._detail_rows['Platform'].config(text=entry.platform, fg=FG)
+        self._detail_rows['Username'].config(text=entry.username, fg=FG)
         self._detail_rows['Password'].config(text=pw, fg=SUCCESS if show_password else FG)
-        self._detail_rows['Category'].config(text=entry.category)
-        self._detail_rows['Notes'].config(text=entry.notes or '—')
-        self._detail_rows['Created'].config(text=entry.created_at[:16] if entry.created_at else '—')
-        self._detail_rows['Updated'].config(text=entry.updated_at[:16] if entry.updated_at else '—')
+        self._detail_rows['Category'].config(text=entry.category, fg=FG)
+        self._detail_rows['Notes'].config(text=entry.notes or '—', fg=FG)
+        self._detail_rows['Created'].config(text=entry.created_at[:16] if entry.created_at else '—', fg=FG)
+        self._detail_rows['Updated'].config(text=entry.updated_at[:16] if entry.updated_at else '—', fg=FG)
 
     def show_password(self):
         selection = self.tree.selection()
