@@ -4,6 +4,8 @@ import pyperclip
 import threading
 import urllib.request
 import webbrowser
+import sys
+import os
 from crypto_helper import CryptoHelper
 from ui.add_edit_dialog import AddEditDialog
 from models.password_entry import PasswordEntry
@@ -23,9 +25,17 @@ FG_DIM    = '#6b7280'
 FG_LABEL  = '#a5b4fc'
 FONT      = 'Segoe UI'
 
-CURRENT_VERSION  = '1.0.1'
-VERSION_URL      = 'https://raw.githubusercontent.com/bulutkocak/Vault-Password-Manager/refs/heads/main/version.txt'
-RELEASES_BASE    = 'https://github.com/bulutkocak/Vault-Password-Manager/releases/tag'
+def _get_current_version() -> str:
+    base = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    try:
+        with open(os.path.join(base, 'version.txt')) as f:
+            return f.read().strip()
+    except Exception:
+        return '0.0.0'
+
+CURRENT_VERSION = _get_current_version()
+VERSION_URL     = 'https://raw.githubusercontent.com/bulutkocak/Vault-Password-Manager/refs/heads/main/version.txt'
+RELEASES_BASE   = 'https://github.com/bulutkocak/Vault-Password-Manager/releases/tag'
 
 
 class MainWindow:
@@ -82,19 +92,29 @@ class MainWindow:
         inner = tk.Frame(banner, bg=WARNING)
         inner.pack(fill='x', padx=16, pady=7)
 
-        tk.Label(inner,
-                 text=f'⬆  New version available: v{latest}  —  click here to download',
-                 font=(FONT, 9, 'bold'), bg=WARNING, fg='#000000',
-                 cursor='hand2').pack(side='left')
+        def open_url(e=None):
+            webbrowser.open(release_url)
 
-        tk.Button(inner, text='✕', command=banner.destroy,
-                  bg=WARNING, fg='#000000', font=(FONT, 9, 'bold'),
-                  relief='flat', cursor='hand2', padx=6,
-                  activebackground=WARNING).pack(side='right')
+        def dismiss(e=None):
+            banner.destroy()
+            return 'break'
 
-        banner.bind('<Button-1>', lambda e: webbrowser.open(release_url))
-        for child in inner.winfo_children():
-            child.bind('<Button-1>', lambda e: webbrowser.open(release_url))
+        msg = tk.Label(inner,
+                       text=f'⬆  New version available: v{latest}  —  click here to download',
+                       font=(FONT, 9, 'bold'), bg=WARNING, fg='#000000',
+                       cursor='hand2')
+        msg.pack(side='left')
+        msg.bind('<Button-1>', open_url)
+
+        close_btn = tk.Button(inner, text='✕', command=dismiss,
+                              bg=WARNING, fg='#000000', font=(FONT, 9, 'bold'),
+                              relief='flat', cursor='hand2', padx=6,
+                              activebackground=WARNING)
+        close_btn.pack(side='right')
+        close_btn.bind('<Button-1>', dismiss)
+
+        banner.bind('<Button-1>', open_url)
+        inner.bind('<Button-1>', open_url)
 
     def _setup_styles(self):
         style = ttk.Style()
