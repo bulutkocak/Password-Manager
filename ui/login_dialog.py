@@ -50,10 +50,10 @@ class LoginDialog:
                  bg=BG, fg=FG_DIM).pack(pady=(2, 0))
 
         if self.is_first_run:
-            pill = tk.Frame(outer, bg='#10b98122')
+            pill = tk.Frame(outer, bg='#0d2b22')
             pill.pack(fill='x', pady=(0, 16))
             tk.Label(pill, text='✦  First run — set your master password',
-                     font=(FONT, 9), bg='#10b98122', fg=SUCCESS,
+                     font=(FONT, 9), bg='#0d2b22', fg=SUCCESS,
                      pady=8).pack()
 
         tk.Label(outer, text='MASTER PASSWORD', font=(FONT, 9, 'bold'),
